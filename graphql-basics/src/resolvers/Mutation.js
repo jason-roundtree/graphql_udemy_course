@@ -143,29 +143,45 @@ const Mutation = {
                 ...args.data
             }
             db.comments.push(comment)
-            pubSub.publish(`comment ${args.data.post}`, { comment })
+            pubSub.publish(`comment ${args.data.post}`, { 
+                comment: {
+                    mutation: 'CREATED',
+                    data: comment
+                }
+            })  
             return comment
         }
     },
-    deleteComment(parent, args, { db }, info) { 
+    deleteComment(parent, args, { db, pubSub }, info) { 
         const commentIndex = db.comments.findIndex(comment => comment.id === args.id)
         if (commentIndex === -1) {
             throw new Error('This comment doesn\'t exist')
         } else {
             const [ deletedComment ] = db.comments.splice(commentIndex, 1)
+            pubSub.publish(`comment ${deletedComment.post}`, {
+                comment: {
+                    mutation: 'DELETED',
+                    data: deletedComment
+                }
+            })
             return deletedComment
         }
     },
-    updateComment(parent, { data, id }, { db }, info) {
+    updateComment(parent, { data, id }, { db, pubSub }, info) {
         const comment = db.comments.find(comment => comment.id === id)
         if (!comment) {
             throw new Error('This comment doesn\'t exist')
-        } else {
-            if (typeof data.text === 'string') {
-                comment.text = data.text
-                return comment
-            }
+        } 
+        if (typeof data.text === 'string') {
+            comment.text = data.text
         }
+        pubSub.publish(`comment ${comment.post}`, {
+            comment: {
+                mutation: 'UPDATED',
+                data: comment
+            }
+        })
+        return comment
     }
 }
 

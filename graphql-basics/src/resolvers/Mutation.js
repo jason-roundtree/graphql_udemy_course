@@ -49,8 +49,10 @@ const Mutation = {
         if (typeof data.age !== 'undefined') { user.age = data.age }
         return user
     },
-    createPost(parent, args, { db }, info) {
-        const userExists = db.users.some(user => user.id === args.data.author)
+    createPost(parent, args, { db, pubSub }, info) {
+        const userExists = db.users.some(user => {
+            return user.id === args.data.author
+        })
         if (!userExists) {
             throw new Error('User not found')
         } else {
@@ -59,31 +61,74 @@ const Mutation = {
                 ...args.data
             }
             db.posts.push(post)
+            if (args.data.published) { 
+                pubSub.publish('post', {
+                    post: {
+                        mutation: 'CREATED',
+                        data: post
+                    }
+                }) 
+            }
             return post
         }
     },
-    deletePost(parent, args, { db }, info) {
+    deletePost(parent, args, { db, pubSub }, info) {
         const postIndex = db.posts.findIndex(post => post.id === args.id)
         if (postIndex === -1) {
             throw new Error('This post doesn\'t exist')
         } else {
             const [ deletedPost ] = db.posts.splice(postIndex, 1)
-            db.comments = db.comments.filter(comment => comment.post !== args.id)
+            db.comments = db.comments.filter(comment => {
+                return comment.post !== args.id
+            })
+            if (deletedPost.published) {
+                pubSub.publish('post', {
+                    post: {
+                        mutation: 'DELETED',
+                        data: deletedPost
+                    }
+                })
+            }
             return deletedPost
         }
     },
-    updatePost(parent, { data, id }, { db }, info) {
+    updatePost(parent, { data, id }, { db, pubSub }, info) {
         const post = db.posts.find(post => post.id === id)
+        const originalPost = { ...post }
         if (!post) {
             throw new Error('This post doesn\'t exist')
         } else {
             if (typeof data.title === 'string') { post.title = data.title }
             if (typeof data.body === 'string') { post.body = data.body }
-            if (typeof data.published === 'string') { post.published = data.bpublishedody }
+            if (typeof data.published === 'boolean') { 
+                post.published = data.published 
+                if (originalPost.published && !post.published) {
+                    pubSub.publish('post', {
+                        post: {
+                            mutation: 'DELETED',
+                            data: originalPost
+                        }
+                    })
+                } else if (!originalPost.published && post.published) {
+                    pubSub.publish('post', {
+                        post: {
+                            mutation: 'CREATED',
+                            data: post
+                        }
+                    })
+                } 
+            } else if (post.published) {
+                pubSub.publish('post', {
+                    post: {
+                        mutation: 'UPDATED',
+                        data: post
+                    }
+                })
+            }
             return post
         }
     },
-    createComment(parent, args, { db }, info) {
+    createComment(parent, args, { db, pubSub }, info) {
         const userExists = db.users.some(user => {
             return user.id === args.data.author
         })
@@ -98,6 +143,7 @@ const Mutation = {
                 ...args.data
             }
             db.comments.push(comment)
+            pubSub.publish(`comment ${args.data.post}`, { comment })
             return comment
         }
     },

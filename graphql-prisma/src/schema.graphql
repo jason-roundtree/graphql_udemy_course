@@ -1,5 +1,3 @@
-# Scalar types: String, Boolean, Int, Float, ID
-
 type Query {
     users(query: String): [User!]!
     posts(query: String): [Post!]!
@@ -56,6 +54,7 @@ type User {
     id: ID!
     name: String!
     email: String!
+    age: Int
     posts: [Post!]!
     comments: [Comment!]!
 }

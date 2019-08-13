@@ -1,42 +1,27 @@
 import uuidv4 from 'uuid/v4'
 
 const Mutation = {
-    createUser(parent, args, { db }, info) {
-        console.log(args)
-        const emailTaken = db.users.some(user => {
-            return user.email === args.data.email
-        })
+    async createUser(parent, args, { prisma }, info) {
+        const emailTaken = await prisma.exists.User({email: args.data.email})
+
         if (emailTaken) {
             throw new Error('This email is taken')
-        } else {
-            const user = { 
-                id: uuidv4(),
-                ...args.data
-            }
-            db.users.push(user)
-            return user
-        }
+        } 
+
+        return prisma.mutation.createUser({ data: args.data }, info)
     },
-    deleteUser(parent, args, { db }, info) { 
-        const userIndex = db.users.findIndex(user => user.id === args.id)
-        if (userIndex === -1) {
-            throw new Error('User not found')
-        } else {
-            const [ deletedUser ] = db.users.splice(userIndex, 1)
-            db.posts = db.posts.filter(post => {
-                const match = post.author === args.id
-                if (match) {
-                    db.comments = db.comments.filter(comment => {
-                        return comment.post !== post.id
-                    })
-                }
-                return !match
-            })
-            db.comments = db.comments.filter(comment => {
-                comment.author !== args.id
-            })
-            return deletedUser
-        }
+    async deleteUser(parent, args, { prisma }, info) { 
+        const userExists = await prisma.exists.User({ id: args.id })
+
+        if (!userExists) {
+            throw new Error('This user doesn\'t exist')
+        } 
+
+        return prisma.mutation.deleteUser({ 
+            where: {
+                id: args.id 
+            }
+        }, info)
     },
     updateUser(parent, { data, id }, { db }, info) {
         const user = db.users.find(user => user.id === id)
